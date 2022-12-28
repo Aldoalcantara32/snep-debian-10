@@ -1,1 +1,0 @@
-apt install curl -y ; curl -s https://raw.githubusercontent.com/qositoficial/snep_307/master/InstallSnepDebian10.sh | bash
