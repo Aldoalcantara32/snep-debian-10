@@ -1,0 +1,206 @@
+Instalando Snep 3.07 no Debian 10.x utilizando a iso netinstall
+
+Path
+
+cat <<EOF >>/root/.bashrc
+export PATH="/usr/local/sbin/:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
+EOF
+source ~/.bashrc
+
+Repositório
+
+apt update
+apt install software-properties-common apt-transport-https curl gnupg1 gnupg2
+curl https://packages.sury.org/php/apt.gpg | apt-key add -
+echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee
+/etc/apt/sources.list.d/php5.list
+apt update
+
+Pré-Requisitos
+apt install apt-transport-https apache2 mariadb-server htop unzip mc ncdu xmlstarlet git
+unixodbc unixodbc-dev odbcinst1debian2 libncurses5-dev g++ build-essential lshw
+libjansson-dev libssl-dev sox sqlite3 libsqlite3-dev libxml2-dev uuid-dev libcurl4-openssl-dev
+libvorbis-dev libmariadbclient-dev dialog python locate rsyslog wget
+
+PHP 5.6
+
+apt install php5.6 php5.6-fpm php5.6-cgi php5.6-mysql php5.6-gd php5.6-curl
+php5.6-opcache php5.6-xml libgd-tools php-pear
+
+update-alternatives --config php (selecionar versão do php 5.6)
+
+vim /etc/php/5.6/cgi/php.ini
+vim /etc/php/5.6/cli/php.ini
+vim /etc/php/5.6/fpm/php.ini
+register_argc_argv = On
+
+a2enmod proxy_fcgi setenvif
+a2enconf php5.6-fpm
+systemctl reload apache2
+systemctl restart apache2
+
+Asterisk 13.x
+
+cd /usr/src
+wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-13-current.tar.gz
+tar -zxf asterisk-13-current.tar.gz
+cd asterisk-13.33.0/
+./configure
+make menuselect
+
+Neste ponto iremos selecionar a opção “Voicemail Build Options” e marcar a opção
+ODBC_STORAGE
+Sair e salvar.
+
+make && make install
+
+cp contrib/init.d/rc.debian.asterisk /etc/init.d/asterisk
+chmod +x /etc/init.d/asterisk
+update-rc.d asterisk defaults
+
+vim /etc/init.d/asterisk
+
+DAEMON=/usr/sbin/asterisk
+ASTVARRUNDIR=/var/run/asterisk
+ASTETCDIR=/etc/asterisk
+
+vim /etc/mysql/mariadb.conf.d/50-server.cnf
+...
+
+[mariadb] (localizar entrada no arquivo)
+sql-mode=NO_ENGINE_SUBSTITUTION
+systemctl restart mariadb
+
+Script de instalação
+
+cd
+vim snep3.07.sh
+#!/bin/bash
+echo "##### Baixando do Bitbucket ... #####"
+cd /var/www/html
+wget -c https://bitbucket.org/snepdev/snep-3/get/master.tar.bz2 -O snep.tar.bz2
+wget -c https://bitbucket.org/snepdev/billing/get/master.tar.gz -O bill.tar.gz
+wget -c https://bitbucket.org/snepdev/ivr/get/master.tar.gz -O ivr.tar.gz
+
+echo "##### Descompactando Arquivos ... #####"
+tar jxf snep.tar.bz2
+tar xf bill.tar.gz
+tar xf ivr.tar.gz
+
+echo "##### Instalando Arquivos snep ... #####"
+mv snepdev-snep-3-cce2cb01cb96 snep
+echo "##### Instalando Billing ... #####"
+cd snepdev-billing-104bff715f7c
+tar cf - . | tar xvf - -C ../snep/modules/billing/
+cd ..
+echo "##### Instalando ivr ... #####"
+cd snepdev-ivr-5a6a4e67be68
+tar cf - . | tar xvf - -C ../snep/modules/ivr/
+cd ..
+
+echo "##### Preparando ... #####"
+mkdir /var/log/snep
+cd /var/log/snep
+touch ui.log
+touch agi.log
+ln -s /var/log/asterisk/full full
+chown -R www-data.www-data *
+cd /var/www/html/snep/
+ln -s /var/log/snep logs
+cd /var/lib/asterisk/agi-bin/
+ln -s /var/www/html/snep/agi/ snep
+cd /etc/apache2/sites-enabled/
+ln -s /var/www/html/snep/install/snep.apache2 001-snep
+cd /var/spool/asterisk/
+rm -rf monitor
+ln -sf /var/www/html/snep/arquivos monitor
+
+echo "##### instalando Banco de Dados ... #####"
+cd /var/www/html/snep/install/database
+mysql -u root < database.sql
+mysql -u root snep < schema.sql
+mysql -u root snep < system_data.sql
+mysql -u root snep < core-cnl.sql
+mysql -u root snep < /var/www/html/snep/modules/billing/install/schema.sql
+
+echo "##### instalando Sons ... #####"
+cd /var/www/html/snep/install/sounds
+mkdir -p /var/lib/asterisk/sounds/en
+tar -xzf asterisk-core-sounds-en-wav-current.tar.gz -C /var/lib/asterisk/sounds/en
+tar -xzf asterisk-extra-sounds-en-wav-current.tar.gz -C /var/lib/asterisk/sounds/en
+mkdir /var/lib/asterisk/sounds/es
+tar -xzf asterisk-core-sounds-es-wav-current.tar.gz -C /var/lib/asterisk/sounds/es
+mkdir /var/lib/asterisk/sounds/pt_BR
+tar -xzf asterisk-core-sounds-pt_BR-wav.tgz -C /var/lib/asterisk/sounds/pt_BR
+cd /var/lib/asterisk/sounds
+mkdir -p es/tmp es/backup en/tmp en/backup pt_BR/tmp pt_BR/backup
+chown -R www-data:www-data *
+mkdir -p /var/www/html/snep/sounds
+cd /var/www/html/snep/sounds/
+ln -sf /var/lib/asterisk/moh/ moh
+ln -sf /var/lib/asterisk/sounds/pt_BR/ pt_BR
+cd /var/lib/asterisk/moh
+mkdir tmp backup
+chown -R www-data.www-data /var/lib/asterisk/moh
+rm -f *-asterisk-moh-opsound-wav
+
+echo "##### Ajustando Permissões ... #####"
+cd /var/www/html
+find . -type f -exec chmod 640 {} \; -exec chown www-data:www-data {} \;
+find . -type d -exec chmod 755 {} \; -exec chown www-data:www-data {} \;
+chmod +x /var/www/html/snep/agi/*
+echo "##### Atualizando Configuração Asterisk ... #####"
+mv -b -f /var/www/html/snep/install/etc/asterisk /etc/
+cp /var/www/html/snep/install/etc/odbc* /etc
+chown -R www-data.www-data /etc/asterisk/snep
+echo "##### Removendo temporários ... #####"
+rm /var/www/html/snep.tar.bz2
+rm /var/www/html/bill.tar.gz
+rm /var/www/html/ivr.tar.gz
+
+chmod +x snep3.07.sh && sh snep3.07.sh
+
+ODBC
+
+wget https://downloads.mariadb.com/Connectors/odbc/connector-odbc-2.0.19/mariadb-connectorodbc-2.0.19-ga-debian-x86_64.tar.gz
+tar -xzf mariadb-connector-odbc-2.0.19-ga-debian-x86_64.tar.gz
+cp lib/libmaodbc.so /usr/lib/x86_64-linux-gnu/odbc/
+
+vim /etc/odbc.ini
+
+; ###OPENS###
+[MySQL-snep]
+Description = MySQL ODBC Driver
+Driver = /usr/lib/x86_64-linux-gnu/odbc/libmaodbc.so
+Socket = /var/run/mysqld/mysqld.sock
+Server = localhost
+User = snep
+Password = sneppass
+Database = snep
+Option = 3
+vim /etc/odbcinst.ini
+
+; ###OPENS###
+[MySQL]
+Description = MySQL ODBC MyODBC Driver
+Driver = /usr/lib/x86_64-linux-gnu/odbc/libmaodbc.so
+FileUsage = 1
+
+[Text]
+Description = ODBC for Text Files
+Driver = /usr/lib/x86_64-linux-gnu/odbc/libodbctxtS.so
+Setup = /usr/lib/x86_64-linux-gnu/odbc/libodbctxtS.so
+FileUsage = 1
+CPTimeout =
+CPReuse =
+
+Snep Web
+cat <<EOF >/var/www/html/index.html
+<html>
+<body>
+<meta http-equiv="Refresh" content="0; url='snep'">
+</body>
+</html>
+EOF
+reboot
+
