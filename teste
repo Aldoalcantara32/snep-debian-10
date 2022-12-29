@@ -99,8 +99,8 @@ echo "Iniciando a instalação do snep 3 ..."
 cd /var/www/html/
 rm -rf /var/www/html/*
 wget -c http://192.168.1.112/aldo/snepdev-snep-3-1ca9454a467d.tar.gz -O snep-3.tgz
-wget -c http://192.168.1.112/aldo/snepdev-billing-104bff715f7c%20(1).tar.gz -O snep-billing.tgz
-wget -c http://192.168.1.112/aldo/snepdev-ivr-5a6a4e67be68%20(1).tar.gz -O snep-ivr.tgz
+wget -c http://192.168.1.112/aldo/snepdev-billing-104bff715f7c.tar.gz -O snep-billing.tgz
+wget -c http://192.168.1.112/aldo/snepdev-ivr-5a6a4e67be68%20.tar.gz -O snep-ivr.tgz
 tar xf snep-3.tgz
 tar xf snep-billing.tgz
 tar xf snep-ivr.tgz
