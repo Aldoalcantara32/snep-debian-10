@@ -1,0 +1,10 @@
+tar -xvf /root/backup.tar.gz
+cd /root/root/backup
+cp -aR agi/* /var/lib/asterisk/agi-bin/
+cp -aR asterisk/* /etc/asterisk/
+rm -rf /var/lib/asterisk/sounds/
+cp -aR sounds/ /var/lib/asterisk/
+
+cp -aR setup.conf /var/www/html/snep/includes/
+
+mysql -uroot -psneppass snep < snep.sql
