@@ -1,0 +1,21 @@
+ip_externo='curl ifconfig.me/ip'
+
+echo "Digite a senha de root do MySQL"
+read senha_mysql
+
+mkdir /root/backup
+mkdir /root/backup/agi
+mkdir /root/backup/asterisk
+
+cp -aR /var/lib/asterisk/sounds/ /root/backup/
+cp -aR /var/lib/asterisk/agi-bin/* /root/backup/agi/
+cp -aR /etc/asterisk/custom /root/backup/asterisk/
+cp -aR /etc/asterisk/extensions.conf /root/backup/asterisk/
+
+mysqldump -uroot -p$senha_mysql snep > /root/backup/snep.sql
+mysqldump -uroot -p$senha_mysql ura > /root/backup/ura.sql
+
+cp -aR /var/www/html/snep/includes/setup.conf /root/backup/
+
+tar -cvf /root/backup.tar.gz /root/backup/
+mv /root/backup.tar.gz /var/www/html/
